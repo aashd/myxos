@@ -1,0 +1,103 @@
+print("ex");
+alias cause S0;
+alias vpg_num S1;
+alias ip_add S2;
+alias i S3;
+alias phy_sp S4;
+alias vic_pgno S5;
+alias swap_blo S6;
+alias j S7;
+cause=EFR%10;
+vpg_num = (EFR/10)%100;
+ip_add = EFR/1000;
+if(cause!=0)then
+	SP=SP+1;////go to exit
+	phy_sp=[PTBR+2*(SP/512)]*512+SP%512;
+	[phy_sp]=10;
+	SP=SP+1;
+	[phy_sp+1]=ip_add;
+	inline "JMP 11776";
+else////page fault
+	if([PTBR+2*vpg_num]==-1)then///invalid page
+		SP=SP+1;////go to exit
+        	phy_sp=[PTBR+2*(SP/512)]*512+SP%512;
+        	[phy_sp]=10;
+        	SP=SP+1;
+        	[phy_sp+1]=ip_add;
+        	inline "JMP 11776";
+	else///ie either swap or disk (no ) is in ptbr
+		i=1024+256;//search for free page in mfl
+		while(i<1024+256+64&&[i]!=0)do
+			i=i+1;
+		endwhile;
+		load(6,20);
+		if(i<1024+256+64)then
+			vic_pgno=i-(1024+256);//page found
+		else
+			//PAGE REP ALGORITHM
+			i=6*512+448;///swap space search
+			while(i<7*512&&[i]!=0)do
+				i=i+1;
+			endwhile;
+			if(i>=7*512)then//no swap available
+				SP=SP+1;////go to exit///////////////////////why not wait?
+                		phy_sp=[PTBR+2*(SP/512)]*512+SP%512;
+                		[phy_sp]=10;
+               			 SP=SP+1;
+                		[phy_sp+1]=ip_add;
+                		inline "JMP 11776";///////////////////////////////////
+			else
+				swap_blo = i-6*512;
+				///SECOND CHANCE SELECT
+				i=PTBR+2*vpg_num;
+				while(i<1024+256)do
+					if(i==1024+254)then
+						i=1024;
+						continue;
+					endif;
+					if((i-1024+2)%8==0)then//skip stack
+						i=i+2;
+						continue;
+					endif;
+					//print(i);
+					//print([i]);
+					//print([i+1]);
+					if([i+1]=="01")then
+						//print("im in");
+						//print([MEM_LIST + j]);
+						j=[i];
+						if([MEM_LIST + j]==1)then///not shared page
+							[MEM_LIST + j]=[MEM_LIST + j]-1;//decrement
+							vic_pgno=[i];
+							break;
+						endif;
+					endif;
+					if([i+1]=="11")then//second chance
+						[i+1]="01";
+                                        endif;
+					i=i+2;
+				endwhile;
+				store(vic_pgno,swap_blo);
+				[DISK_LIST + swap_blo]=[DISK_LIST + swap_blo]+1;
+				[i+1]="00";
+				[i]=swap_blo;
+			endif;
+		endif;
+		[MEM_LIST+vic_pgno]=[MEM_LIST+vic_pgno]+1;
+		j=[PTBR+2*vpg_num];
+                if(j>447)then
+                	load(vic_pgno,j);
+                        [DISK_LIST+j]=[DISK_LIST+j]-1;//decrement dfl
+                else
+                        load(vic_pgno,j);
+                endif;
+                [PTBR+2*vpg_num]=vic_pgno;
+                [PTBR+2*vpg_num+1]="11";
+                store(6,20);
+		SP=SP+1;
+		phy_sp=[PTBR+2*(SP/512)]*512+SP%512;
+		[phy_sp]=ip_add;
+		ireturn;
+	endif;
+endif;
+

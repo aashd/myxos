@@ -1,0 +1,78 @@
+alias  phy_sp S0;
+alias  syscall_no S1;
+alias  sem_name S2;
+alias sem_id S4;
+alias  i S3;
+alias j S6;
+alias z S7;
+alias curr_pid S8;
+alias ref S9;
+phy_sp = [PTBR+(SP/512)*2]*512+SP%512;
+syscall_no=[phy_sp-1];
+sem_name=[phy_sp-3];
+curr_pid=(PTBR-1024)/8;
+if(syscall_no==1)then
+	//////new create
+	print("Create");
+	i=25*512+8*4*curr_pid;
+	while(i<25*512+8*4*curr_pid+8*4&&[i]!=sem_name)do
+		i=i+4;
+	endwhile;
+	if([i]>=25*512+8*4*curr_pid+8*4)then
+		[phy_sp-2]=-1;
+		ireturn;
+	endif;
+	i=25*512+8*4*curr_pid;
+	while(i<25*512+8*4*curr_pid+8*4&&[i]!=-1)do
+		print([i]);
+		i=i+4;
+	endwhile;
+	if([i]>=25*512+8*4*curr_pid+4*8)then
+                [phy_sp-2]=-2;
+                ireturn;
+        endif;
+	[i]=sem_name;
+	[i+1]=0;
+	[i+2]=curr_pid;
+	[i+3]=24;
+	sem_id=(i-(25*512+8*4*curr_pid))/4;
+	[phy_sp-2]=sem_id;
+	ireturn;
+else
+	print("Delete");
+	i=25*512+8*4*curr_pid;
+        while(i<25*512+8*4*curr_pid+8*4&&[i]!=sem_name)do
+		print([i]);
+                i=i+4;
+        endwhile;
+        if(i>=25*512+8*4*curr_pid+4*8)then
+                [phy_sp-2]=-1;
+                ireturn;
+        endif;
+	ref=[i+2];
+	i=25*512;
+	j=0;
+	while(i<25*512+8*4*32)do
+		if([i+2]==ref&&[i]==sem_name)then
+			j=j||[i+1];
+		endif;
+		i=i+4;
+	endwhile;
+	if(j==1)then
+		[phy_sp-2]=-2;
+                ireturn;
+	else
+		while(i<25*512+8*4*32)do
+        	        if([i+2]==ref&&[i]==sem_name)then
+                	        [i]=-1;
+        			[i+1]=-1;
+        			[i+2]=-1;
+        			[i+3]=-1;
+  	         	endif;
+			i=i+4;
+        	endwhile;
+		[phy_sp-2]=0;
+		ireturn;
+	endif;
+	
+endif;

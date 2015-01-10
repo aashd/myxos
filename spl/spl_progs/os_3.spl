@@ -1,0 +1,76 @@
+load(7,1);//exhandler
+load(8,2);
+load(23,17);//int7
+load(24,18);
+load(11,5);//int1
+load(12,6);
+load(13,7);//int2
+load(14,8);
+load(15,9);//int3
+load(16,10);
+load(17,11);//int4
+load(18,12);
+load(19,13);//int5
+load(20,14);
+load(21,15);//int6
+load(22,16);
+load(9,3);//timer
+load(10,4);
+[READY_LIST+0]=0;
+PTBR=1024;//initialising registers
+PTLR=4;
+alias i S0;
+i=1024;//per proc page table initialise
+while(i<1024+256)do
+	[i]=-1;
+	[i+1]="00";
+	i=i+2;
+endwhile;
+i=1024+256+64;//system wide open file table initailize
+while(i<1024+256+64+128)do
+	[i]=-1;//fat entry
+	[i+1]=0;//count
+	i=i+2;
+endwhile;
+i=READY_LIST+15;//per proc filetable ready_list+PID*32+15
+while(i<READY_LIST+31)do
+	[i]=-1;
+	[i+1]=-1;
+	i=i+2;
+endwhile;
+i=1024+256;////initialising mem list
+while(i<1024+256+64)do
+	if(i<1024+256+25)then
+		[i]=1;
+	else
+		[i]=0;
+	endif;
+	i=i+1;
+endwhile;
+i=READY_LIST+1;////initialising state in the pcbs
+while(i<4*512)do
+	[i]=0;
+	i=i+32;
+endwhile;
+load(6,20);
+i=6*512+448;
+while(i<7*512)do
+	[i]=0;
+	i=i+1;
+endwhile;
+store(6,20);
+[PTBR+0]=21;//page table
+[PTBR+1]="00";
+[PTBR+2]=22;
+[PTBR+3]="00";
+[PTBR+4]=23;
+[PTBR+5]="00";
+[PTBR+6]=25;
+[PTBR+7]="01";
+[MEM_LIST+25]=1;
+[READY_LIST+1]=2;//RUNNING
+[READY_LIST+31]=0;///parent pid if pid =ppid then init
+SP=3*512;
+[25*512]=0;
+ireturn;
+

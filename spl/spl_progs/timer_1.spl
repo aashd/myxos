@@ -1,0 +1,64 @@
+alias curr_pid S0;//PTBR is a register has running procss's page tables base
+curr_pid =(PTBR-1024)/8;
+alias curr_pcb S1;
+curr_pcb=READY_LIST+(32*curr_pid);//getting to the start of the current pcb(we need to back up all info petaining to the process before we withdraw it)
+[curr_pcb+1]=1;//from running to ready
+[curr_pcb+2]=BP;
+[curr_pcb+3]=SP-1;//we are not changing sp to sp-1 rather we store in pcb sp-1(real boundaries of stack)
+//////////////////to access an adress in spl all phy addressing (but sp=logical )so conversion required
+alias phy_sp S2;
+phy_sp=([PTBR+2*(SP/512)]*512)+(SP%512);//to fetch the ip  of process so as to backup
+[curr_pcb+4]=[phy_sp];
+[curr_pcb+5]=PTBR;
+[curr_pcb+6]=PTLR;
+[curr_pcb+7]=R0;
+[curr_pcb+8]=R1;
+[curr_pcb+9]=R2;
+[curr_pcb+10]=R3;
+[curr_pcb+11]=R4;
+[curr_pcb+12]=R5;
+[curr_pcb+13]=R6;
+[curr_pcb+14]=R7;
+//////////////////////////roound robin
+alias new_pcb S3;
+alias j S4;
+alias i S5;
+i=curr_pcb+32;
+while(i<5*512&&[i+1]!=1)do
+	i=i+32;
+endwhile;
+if(i>=5*512)then
+	j=3*512;
+	while(j<curr_pcb&&[j+1]!=1)do
+		j=j+32;
+	endwhile;
+	if(j==curr_pcb)then
+		new_pcb=j;	
+	else
+		new_pcb=j;
+	endif;
+else
+	new_pcb=i;
+endif;
+////////////////////
+[new_pcb+1]=2;//running
+BP=[new_pcb+2];//////load all scheduled stuff into processor
+SP=[new_pcb+3];
+PTBR=[new_pcb+5];
+PTLR=[new_pcb+6];
+R0=[new_pcb+7];
+R1=[new_pcb+8];
+R2=[new_pcb+9];
+R3=[new_pcb+10];
+R4=[new_pcb+11];
+R5=[new_pcb+12];
+R6=[new_pcb+13];
+R7=[new_pcb+14];
+SP=SP+1;///to store prev IP on top of stack to start exec(thats how i ret works ) this is the new sp
+alias newphy_sp S5;
+newphy_sp=([PTBR+2*(SP/512)]*512)+(SP%512);//after new sp is loaded
+[newphy_sp] = [new_pcb+4];//////all this shinnanigans sice you cant change ip directly
+[new_pcb+1]=2;
+ireturn;
+
+

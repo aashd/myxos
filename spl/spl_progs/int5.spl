@@ -1,0 +1,104 @@
+alias phy_sp S0;
+alias curr_pid S1;
+alias syscall_no S2;
+alias new_pid S3;
+alias i S4;
+alias count S5;
+alias count1 S6;
+alias new_ptbr S7;
+alias j S8;
+alias x S9;
+alias new_pcb S10;
+curr_pid=(PTBR-1024)/8;
+phy_sp=[PTBR+2*(SP/512)]*512+SP%512;
+syscall_no=[phy_sp-1];
+if(syscall_no==8)then
+	i=READY_LIST+1;///searching for pcb state=0
+	while(i<5*512&&[i]!=0)do
+		i=i+32;
+	endwhile;	
+	if(i>5*512)then
+		[phy_sp-2]=-1;
+		ireturn;
+	else
+		new_pid=(i-READY_LIST)/32;
+	endif;
+	count=0;
+	i=PTBR;///counting no of pages of the curr process
+	while(i<PTBR+8)do
+		if([i+1]=="01"||[i+1]=="11")then
+			count=count+1;
+		endif;
+		i=i+2;
+	endwhile;
+	count1=0;
+	i=1024+256;///memfreelist check if pages are present
+	while(i<1024+256+64&&count1<count)do
+		if([i]==0)then
+			count1=count1+1;
+		endif;
+		i=i+1;
+	endwhile;
+	if(count1<count)then
+		[phy_sp-2]=-3;
+		ireturn;
+	endif;
+	new_ptbr=1024+8*new_pid;
+	i=PTBR;/////////copying pages old to new and updating new pagetable
+	while(i<PTBR+8)do
+		if([i+1]=="01"||[i+1]=="11")then
+			j=1024+256+25;
+			while(j<1024+256+64&&[j]!=0)do///this is already checked so you will have count no of pages free
+				j=j+1;
+			endwhile;
+			x=j-(1024+256);
+			count1=0;
+			count=[i];
+			while(count1<512)do
+				[x*512+count1]=[count*512+count1];
+				count1=count1+1;
+			endwhile;
+			[j]=1;///update mem free list
+			[new_ptbr]=x;
+			[new_ptbr+1]="01";
+			new_ptbr=new_ptbr+2;
+		endif;
+		i=i+2;
+	endwhile;
+	new_ptbr=1024+8*new_pid;////////////updating pcbs
+	new_pcb=READY_LIST+32*new_pid;
+	[new_pcb]=new_pid;
+	[new_pcb+1]=1;////state
+	[new_pcb+2]=BP;
+	[new_pcb+3]=SP-1;
+	[new_pcb+4]=[phy_sp];
+	[new_pcb+5]=new_ptbr;
+	[new_pcb+6]=PTLR;
+	[new_pcb+7]=R0;
+	[new_pcb+8]=R1;
+	[new_pcb+9]=R2;
+	[new_pcb+10]=R3;
+	[new_pcb+11]=R4;
+	[new_pcb+12]=R5;
+	[new_pcb+13]=R6;
+	[new_pcb+14]=R7;
+	count1=15;
+	i=READY_LIST+32*curr_pid+15;//////dealing with perproc file tables file tables
+	while(i<READY_LIST+32*curr_pid+31)do
+		[new_pcb+count1]=[i];
+		[new_pcb+count1+1]=[i+1];
+		if([i]!=-1)then///////swoft
+			j=[i];
+			[1024+256+64+2*j+1]=[1024+256+64+2*j+1]+1;//inc count in swoft	
+		endif;
+		i=i+2;
+	endwhile;
+	[new_pcb+31]=curr_pid;////parent pid
+	[phy_sp-2]=new_pid;/////curr proc return
+	phy_sp=[new_ptbr+2*((SP-1)/512)]*512+(SP-1)%512;//child process return
+	[phy_sp-1]=-2;
+	ireturn; 
+else
+	ireturn;
+endif;
+

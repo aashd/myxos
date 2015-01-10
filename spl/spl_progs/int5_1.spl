@@ -1,0 +1,146 @@
+print("in Fork");
+alias phy_sp S0;
+alias curr_pid S1;
+alias syscall_no S2;
+alias new_pid S3;
+alias i S4;
+alias count S5;
+alias count1 S6;
+alias new_ptbr S7;
+alias j S8;
+alias x S9;
+alias new_pcb S10;
+alias swap_blo S11;
+curr_pid=(PTBR-1024)/8;
+phy_sp=[PTBR+2*(SP/512)]*512+SP%512;
+syscall_no=[phy_sp-1];
+if(syscall_no==8)then
+	i=READY_LIST+1;///searching for pcb state=0
+	while(i<5*512&&[i]!=0)do
+		i=i+32;
+	endwhile;	
+	if(i>5*512)then
+		[phy_sp-2]=-1;
+		ireturn;
+	else
+		new_pid=(i-READY_LIST)/32;
+	endif;
+	i=MEM_LIST;/////finding a page for stack
+	while(i<MEM_LIST+64&&[i]!=0)do
+		i=i+1;
+	endwhile;
+	if(i>=MEM_LIST+64)then
+		load(6,20);
+		//PAGE REP ALGORITHM
+                i=6*512+448;///swap space search
+                while(i<7*512&&[i]!=0)do
+               	       i=i+1;
+                endwhile;
+                if(i>=7*512)then//no swap available
+			[phy_sp-2]=-2;
+			ireturn ;
+                else
+                     swap_blo = i-6*512;
+                     ///SECOND CHANCE SELECT
+                     i=PTBR+2*([SP]/512);
+                     while(i<1024+256)do
+                     	    if(i==1024+254)then
+                     	    	i=1024;
+                                continue;
+                            endif;
+                            if((i-1024+2)%8==0)then//skip stack
+                                i=i+2;
+                                continue;
+                            endif;
+                            //print(i);
+                            //print([i]);
+                            //print([i+1]);
+                            if([i+1]=="01")then
+                           	 //print("im in");
+                                 //print([MEM_LIST + j]);
+                                 j=[i];
+                                 if([MEM_LIST + j]==1)then///not shared page
+                           	      [MEM_LIST + j]=[MEM_LIST + j]-1;//decrement
+                                      j=[i];
+                                      break;
+                                 endif;
+			    endif;
+			    if([i+1]=="11")then//second chance
+                                       [i+1]="01";
+                            endif;
+                            i=i+2;
+                       endwhile;
+                       store(j,swap_blo);
+                      [DISK_LIST + swap_blo]=[DISK_LIST + swap_blo]+1;
+                      [i+1]="00";
+                      [i]=swap_blo;
+                endif;
+		store(6,20);
+	else
+		j=i-MEM_LIST;/////free page for stack
+	endif;
+	count=0;/////////copying stack old to new
+	while(count<512)do
+		i=[PTBR+6];//old stack pg
+		[j*512+count]=[i*512+count];
+		count=count+1;
+	endwhile;
+	[MEM_LIST+j]=[MEM_LIST+j]+1;
+	load(6,20);
+	new_ptbr=1024+8*new_pid;////dealing with ptbr
+	[new_ptbr+6]=j;
+	[new_ptbr+7]="01";
+	i=PTBR;
+	while(i<PTBR+6)do
+		[new_ptbr]=[i];
+		[new_ptbr+1]=[i+1];
+		j=[i];
+		if([i+1]=="01"||[i+1]=="11")then
+			[MEM_LIST+j]=[MEM_LIST+j]+1;
+		endif;
+		if([i+1]=="00")then
+			if([i]>447)then
+				[DISK_LIST+j]=[DISK_LIST+j]+1;
+			endif;
+		endif;
+		new_ptbr=new_ptbr+2;
+		i=i+2;
+	endwhile;
+	store(6,20);
+	new_ptbr=1024+8*new_pid;////////////updating pcbs
+	new_pcb=READY_LIST+32*new_pid;
+	[new_pcb]=new_pid;
+	[new_pcb+1]=1;////state
+	[new_pcb+2]=BP;
+	[new_pcb+3]=SP-1;
+	[new_pcb+4]=[phy_sp];
+	[new_pcb+5]=new_ptbr;
+	[new_pcb+6]=PTLR;
+	[new_pcb+7]=R0;
+	[new_pcb+8]=R1;
+	[new_pcb+9]=R2;
+	[new_pcb+10]=R3;
+	[new_pcb+11]=R4;
+	[new_pcb+12]=R5;
+	[new_pcb+13]=R6;
+	[new_pcb+14]=R7;
+	count1=15;
+	i=READY_LIST+32*curr_pid+15;//////dealing with perproc file tables file tables
+	while(i<READY_LIST+32*curr_pid+31)do
+		[new_pcb+count1]=[i];
+		[new_pcb+count1+1]=[i+1];
+		if([i]!=-1)then///////swoft
+			j=[i];
+			[1024+256+64+2*j+1]=[1024+256+64+2*j+1]+1;//inc count in swoft	
+		endif;
+		i=i+2;
+	endwhile;
+	[new_pcb+31]=curr_pid;////parent pid
+	[phy_sp-2]=new_pid;/////curr proc return
+	phy_sp=[new_ptbr+2*((SP-1)/512)]*512+(SP-1)%512;//child process return
+	[phy_sp-1]=-2;
+	ireturn; 
+else
+	ireturn;
+endif;
+

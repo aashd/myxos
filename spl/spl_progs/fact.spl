@@ -1,0 +1,13 @@
+alias a S0;
+alias counter S1;
+alias b S2;
+print"Enter n";
+read a;
+counter=a;
+b=1;
+while(counter>0)do
+	b=counter*b;
+	counter =counter -1;
+endwhile;
+print "Factorial is ";
+print b;

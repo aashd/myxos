@@ -1,0 +1,76 @@
+alias phy_sp S0;
+alias syscall_no S1;
+alias word_tow S2;
+alias file_desc S3;
+alias fat_entry S4;
+alias i S12;
+alias sw_index S5;
+alias curr_pid S6;
+alias lseek_pos S7;
+alias p_ppofentry S8;
+alias bas_block S9;
+alias j S10;
+alias dat_block S11;
+phy_sp=[PTBR+2*(SP/512)]*512+SP%512;
+syscall_no=[phy_sp-1];
+word_tow= [phy_sp-3];
+file_desc=[phy_sp-4];
+if(syscall_no==5)then
+	
+	curr_pid=(PTBR-1024)/8;
+	i=READY_LIST+32*curr_pid+15+2*file_desc;
+	if(file_desc>=0&&file_desc<8)then//file disc validity
+		sw_index=[i];//swoft index
+		lseek_pos=[i+1];
+		p_ppofentry=i;
+	else
+		[phy_sp-2]=-1;
+		ireturn;
+	endif;
+	if(sw_index==-1)then//checking if sw index in ppoft is valid
+		[phy_sp-2]=-2;
+                ireturn;
+	endif;
+	i=FILE_TABLE+sw_index*2;//1024+256+64
+	fat_entry=[i];//no need to check validity
+	load(5,19);
+	bas_block=[FAT+(fat_entry)*8+2];///usage of FAT so load before thia fat
+	load(1,bas_block);
+	i=lseek_pos/512;///index of basic block
+	j=[512+i];//
+	if(j!=-1)then
+		load(1,j);
+		[512+lseek_pos%512]=word_tow;//store the word
+		store(1,j);
+		[p_ppofentry+1]=lseek_pos+1;
+		[phy_sp-2]=0;
+		ireturn;
+	else
+		load(6,20);///disk free list
+		i=6*512;
+		while(i<6*512+448&&[i]!=0)do
+			i=i+1;
+		endwhile;
+		if(i>=6*512+448)then
+			[phy_sp-2]=-3;
+			ireturn;
+		else
+			dat_block=i-6*512;
+		endif;
+		[512+lseek_pos/512]=dat_block;///updating bas block
+		store(1,bas_block);
+		[FAT+8*(fat_entry)+1]=[FAT+8*fat_entry+1]+512;//inc file size update fat
+		store(5,19);
+		[6*512+dat_block]=1;//updating dfl entry
+		store(6,20);
+		load(1,dat_block);
+		[512+lseek_pos%512]=word_tow;//store the word
+                store(1,dat_block);
+                [p_ppofentry+1]=lseek_pos+1;
+                [phy_sp-2]=0;
+                ireturn;	
+	endif;
+	
+else
+	ireturn;
+endif; 

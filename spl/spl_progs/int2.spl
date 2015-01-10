@@ -1,0 +1,101 @@
+alias phy_sp S0;
+alias syscall_no S1;
+alias file_name S2;
+alias i S3;
+alias fat_entry S4;
+alias sw_index S5;
+alias curr_pid S6;
+alias j S7;
+phy_sp=[PTBR+2*(SP/512)]*512+SP%512;
+syscall_no=[phy_sp-1];
+load(5,19);
+if(syscall_no==2)then
+	file_name=[phy_sp-3];
+	i=FAT;//5*512
+	while(i<6*512&&[i]!=file_name)do
+		i=i+8;
+	endwhile;
+	if([i]==file_name)then
+		fat_entry=(i-FAT)/8;
+	else
+		[phy_sp-2]=-1;
+		ireturn;
+	endif;
+	i=FILE_TABLE;//sys wide open file table 1024+256+64
+	while(i<FILE_TABLE+128&&[i]!=fat_entry&&[i]!=-1)do// check for file opened already?////////////////////////////////
+		i=i+2;
+	endwhile;
+	if([i]==fat_entry)then
+		sw_index=(i-FILE_TABLE)/2;//file already opened by some process
+		curr_pid = (PTBR-1024)/8;//pid
+		j=READY_LIST+curr_pid*32+15;//per proc file table
+		while(j<READY_LIST+(curr_pid*32)+31&&[j]!=-1)do//search in perproc open f tab
+			j=j+2;
+		endwhile;
+		if([j]==-1)then//entry found in ppoft
+			[j]=sw_index;///filling ppoft
+			[j+1]=0;
+			[i+1]=[i+1]+1;//increasing count in swoft
+		else
+			[phy_sp-2]=-2;
+			ireturn;
+		endif;
+	endif;
+	if([i]==-1)then
+		sw_index=(i-FILE_TABLE)/2;//file not opened by some process
+        	curr_pid = (PTBR-1024)/8;//pid
+        	j=READY_LIST+curr_pid*32+15;//per proc file table
+        	while(j<READY_LIST+(curr_pid*32)+31&&[j]!=-1)do//search in perproc open f tab
+                	j=j+2;
+        	endwhile;
+        	if([j]==-1)then//entry found in ppoft
+			[j]=sw_index;///filling ppoft
+			[j+1]=0;
+			[i]=fat_entry;///filling swoft entry
+			[i+1]=[i+1]+1;
+		else
+			[phy_sp-2]=-3;
+			ireturn;
+		endif;
+	endif;
+	if(i>=FILE_TABLE+128)then
+		[phy_sp-2]=-4;
+		ireturn;
+	endif;
+	[phy_sp-2]=0;
+	ireturn;
+else
+	alias file_desc S8;
+	file_desc=[phy_sp-3];
+	curr_pid=(PTBR-1024)/2;
+	j=READY_LIST+(32*curr_pid)+15+2*(file_desc);//ppoft base of fdesc
+	if(file_desc==0||file_desc==1||file_desc==2||file_desc==3||file_desc==4||file_desc==5||file_desc==6||file_desc==7)then//validification for file desc input
+		sw_index=[j];
+	else
+		[phy_sp-2]=-1;
+		ireturn;
+	endif;
+	if(sw_index==-1)then
+		[phy_sp-2]=-2;
+		ireturn;
+	else
+		i=FILE_TABLE+sw_index*2;//1024+256+64 
+		[i+1]=[i+1]-1;
+		if([i+1]==0)then
+			[i]=-1;
+		endif;
+		[j]=-1;
+		[j+1]=-1;
+		[phy_sp-2]=0;
+		ireturn;
+	endif;
+endif;
+
+
+
+
+
+
+
+
+
