@@ -12,7 +12,7 @@ alias new_pcb S10;
 curr_pid=(PTBR-1024)/8;
 phy_sp=[PTBR+2*(SP/512)]*512+SP%512;
 syscall_no=[phy_sp-1];
-if(syscall_no==8)then
+if(syscall_no==8)then//FORK
 	i=READY_LIST+1;///searching for pcb state=0
 	while(i<5*512&&[i]!=0)do
 		i=i+32;
